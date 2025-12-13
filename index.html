@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fund Master</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Import Map: Tells browser where to find 'react', 'firebase', etc. -->
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "lucide-react": "https://esm.sh/lucide-react@0.300.0",
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
+      }
+    }
+    </script>
+
+    <style>
+        /* Custom scrollbar for tables */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        
+        body { background-color: #030712; color: #f3f4f6; }
+        
+        /* Safe area for mobile bottom nav */
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useMemo } from 'react';
+        import ReactDOM from 'react-dom/client';
+        import { 
+          Plus, Trash2, TrendingUp, DollarSign, Users, Activity, 
+          PieChart, ArrowRight, XCircle, LogIn, LogOut, AlertTriangle, 
+          LayoutDashboard, BookOpen 
+        } from 'lucide-react';
+        
+        import { initializeApp } from "firebase/app";
+        import { 
+          getAuth, signInWithPopup, GoogleAuthProvider, signOut, 
+          onAuthStateChanged, signInAnonymously 
+        } from "firebase/auth";
+        import { 
+          getFirestore, collection, doc, setDoc, deleteDoc, 
+          onSnapshot, updateDoc, query 
+        } from "firebase/firestore";
+
+        // --- Firebase Initialization ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyDAU3qUSdj97I08ga6byIoFQb_pf0b3EeI",
+          authDomain: "e-i-b-e-p-r-o-mideabank-muwplu.firebaseapp.com",
+          projectId: "e-i-b-e-p-r-o-mideabank-muwplu",
+          storageBucket: "e-i-b-e-p-r-o-mideabank-muwplu.firebasestorage.app",
+          messagingSenderId: "567962116529",
+          appId: "1:567962116529:web:f4adb03ee770d977175d90"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = 'fund-master-v1';
+
+        // --- Components ---
+
+        const Card = ({ children, className = "" }) => (
+          <div className={`bg-gray-800 rounded-xl border border-gray-700 shadow-lg ${className}`}>
+            {children}
+          </div>
+        );
+
+        const Button = ({ onClick, children, variant = 'primary', className = "" }) => {
+          const base = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed";
+          const variants = {
+            primary: "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 active:scale-95",
+            success: "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 active:scale-95",
+            danger: "bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/20 active:scale-95",
+            ghost: "bg-gray-700 hover:bg-gray-600 text-gray-300 active:scale-95",
+            google: "bg-white text-gray-800 hover:bg-gray-100 active:scale-95",
+            icon: "p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-colors"
+          };
+          return (
+            <button onClick={onClick} className={`${base} ${variants[variant]} ${className}`}>
+              {children}
+            </button>
+          );
+        };
+
+        const Input = ({ label, ...props }) => (
+          <div className="flex flex-col gap-1 w-full">
+            {label && <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</label>}
+            <input 
+              className="bg-gray-900 border border-gray-700 text-white rounded-lg px-3 py-2 sm:py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-gray-600 w-full"
+              {...props}
+            />
+          </div>
+        );
+
+        // --- Sub-Views ---
+
+        const DashboardView = ({ stats, investors, formatCurrency, setActiveTab }) => (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="p-5 flex flex-col justify-between bg-gradient-to-br from-blue-900 to-gray-800">
+                <div>
+                  <p className="text-blue-300 font-medium text-sm">Total Fund Capital</p>
+                  <h3 className="text-2xl sm:text-3xl font-bold text-white mt-1">{formatCurrency(stats.totalInitialCapital)}</h3>
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-blue-200 text-sm">
+                  <Users size={16} />
+                  <span>{investors.length} Investors</span>
+                </div>
+              </Card>
+
+              <Card className="p-5 flex flex-col justify-between">
+                <div>
+                  <p className="text-gray-400 font-medium text-sm">Realized P/L</p>
+                  <h3 className={`text-2xl sm:text-3xl font-bold mt-1 ${stats.totalRealizedPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {stats.totalRealizedPL > 0 ? '+' : ''}{formatCurrency(stats.totalRealizedPL)}
+                  </h3>
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-gray-400 text-sm">
+                  <Activity size={16} />
+                  <span>{stats.totalTradeCount} Closed Trades</span>
+                </div>
+              </Card>
+
+              <Card className="p-5 flex flex-col justify-between">
+                <div>
+                  <p className="text-gray-400 font-medium text-sm">Total Fund Value</p>
+                  <h3 className="text-2xl sm:text-3xl font-bold text-white mt-1">{formatCurrency(stats.totalFundValue)}</h3>
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-gray-400 text-sm">
+                  <PieChart size={16} />
+                  <span>Current Net Worth</span>
+                </div>
+              </Card>
+
+              <Card className="p-5 flex flex-col justify-between">
+                <div>
+                  <p className="text-gray-400 font-medium text-sm">ROI (Realized)</p>
+                  <h3 className={`text-2xl sm:text-3xl font-bold mt-1 ${stats.roi >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {stats.roi.toFixed(2)}%
+                  </h3>
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-gray-400 text-sm">
+                  <TrendingUp size={16} />
+                  <span>Return on Investment</span>
+                </div>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              <div className="w-full space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Users className="text-blue-500" /> Client Distribution
+                  </h2>
+                  <Button variant="ghost" onClick={() => setActiveTab('clients')} className="hidden sm:flex">Manage Clients</Button>
+                </div>
+                
+                <Card className="overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[600px] sm:min-w-0">
+                      <thead>
+                        <tr className="bg-gray-900/50 text-gray-400 text-xs uppercase whitespace-nowrap">
+                          <th className="p-4">Client</th>
+                          <th className="p-4 text-right">Initial Invest</th>
+                          <th className="p-4 text-right">Share %</th>
+                          <th className="p-4 text-right">Profit Share</th>
+                          <th className="p-4 text-right">Current Equity</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-700">
+                        {investors.map(inv => {
+                          const share = stats.totalInitialCapital > 0 ? inv.amount / stats.totalInitialCapital : 0;
+                          const profitShare = stats.totalRealizedPL * share;
+                          const currentEquity = inv.amount + profitShare;
+                          
+                          return (
+                            <tr key={inv.id} className="hover:bg-gray-700/30 transition-colors text-sm whitespace-nowrap">
+                              <td className="p-4 font-medium text-white">{inv.name}</td>
+                              <td className="p-4 text-right text-gray-300">{formatCurrency(inv.amount)}</td>
+                              <td className="p-4 text-right text-blue-400 font-mono">{formatPercent(share * 100)}</td>
+                              <td className={`p-4 text-right font-mono ${profitShare >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {profitShare > 0 ? '+' : ''}{formatCurrency(profitShare)}
+                              </td>
+                              <td className="p-4 text-right font-bold text-white">{formatCurrency(currentEquity)}</td>
+                            </tr>
+                          );
+                        })}
+                        {investors.length === 0 && (
+                          <tr>
+                            <td colSpan="5" className="p-8 text-center text-gray-500">
+                              No clients found.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </div>
+            </div>
+          </div>
+        );
+
+        const ClientManagerView = ({ investors, newInvestor, setNewInvestor, handleAddInvestor, handleRemoveInvestor, formatCurrency, setActiveTab }) => (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-white">Client Management</h2>
+              <Button variant="ghost" onClick={() => setActiveTab('dashboard')} className="hidden sm:flex">Back to Dashboard</Button>
+            </div>
+
+            <Card className="p-4 sm:p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">Add New Investor</h3>
+              <p className="text-sm text-gray-400 mb-4">Note: Adding a client with an existing name will add the funds to their current balance.</p>
+              <form onSubmit={handleAddInvestor} className="flex flex-col md:flex-row gap-4 items-end">
+                <Input 
+                  label="Client Name"
+                  placeholder="e.g. John Doe"
+                  value={newInvestor.name}
+                  onChange={e => setNewInvestor({...newInvestor, name: e.target.value})}
+                />
+                <Input 
+                  label="Investment Amount"
+                  type="number"
+                  placeholder="0.00"
+                  value={newInvestor.amount}
+                  onChange={e => setNewInvestor({...newInvestor, amount: e.target.value})}
+                />
+                <Button type="submit" variant="success" className="w-full md:w-auto h-[42px] mt-2 md:mt-0">
+                  <Plus size={18} /> Add Funds
+                </Button>
+              </form>
+            </Card>
+
+            <Card>
+              <div className="p-4 border-b border-gray-700 bg-gray-900/30">
+                <h3 className="text-lg font-semibold text-white">Investor Registry</h3>
+              </div>
+              <div className="divide-y divide-gray-700">
+                {investors.map(inv => (
+                  <div key={inv.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-gray-700/20 gap-3 sm:gap-0">
+                    <div>
+                      <p className="text-white font-medium">{inv.name}</p>
+                      <p className="text-sm text-gray-400">Added: {new Date(inv.date).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
+                      <div className="text-left sm:text-right">
+                        <p className="text-sm text-gray-400 uppercase text-xs">Total Capital</p>
+                        <p className="text-white font-mono">{formatCurrency(inv.amount)}</p>
+                      </div>
+                      <button 
+                        onClick={() => handleRemoveInvestor(inv.id)}
+                        className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="Remove Investor"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {investors.length === 0 && (
+                  <div className="p-8 text-center text-gray-500">No investors found.</div>
+                )}
+              </div>
+            </Card>
+          </div>
+        );
+
+        const TradingView = ({ 
+          trades, newTrade, setNewTrade, handleAddTrade, 
+          stats, projections, handleUpdateProjections, 
+          closeTradeData, setCloseTradeData, handleCloseTrade, 
+          handleDeleteTrade, initCloseTrade, formatCurrency, setActiveTab 
+        }) => {
+          const activeTrades = trades.filter(t => t.status === 'OPEN').sort((a,b) => new Date(b.entryDate) - new Date(a.entryDate));
+          const historyTrades = trades.filter(t => t.status === 'CLOSED').sort((a,b) => new Date(b.exitDate) - new Date(a.exitDate));
+
+          const currentEntryPrice = parseFloat(newTrade.price);
+          const target05 = currentEntryPrice ? (currentEntryPrice * 1.005).toFixed(2) : '---';
+          const target10 = currentEntryPrice ? (currentEntryPrice * 1.01).toFixed(2) : '---';
+
+          return (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Trade Journal</h2>
+                <Button variant="ghost" onClick={() => setActiveTab('dashboard')} className="hidden sm:flex">Back to Dashboard</Button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                  <Card className="p-4 sm:p-6 h-full">
+                    <h3 className="text-lg font-semibold text-white mb-4">Log New Entry</h3>
+                    <form onSubmit={handleAddTrade} className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                      <Input 
+                        label="Date"
+                        type="date"
+                        value={newTrade.date}
+                        onChange={e => setNewTrade({...newTrade, date: e.target.value})}
+                      />
+                      <Input 
+                        label="Stock Symbol"
+                        placeholder="e.g. AAPL"
+                        value={newTrade.symbol}
+                        onChange={e => setNewTrade({...newTrade, symbol: e.target.value})}
+                      />
+                      
+                      <div className="space-y-2">
+                        <Input 
+                          label="Entry Price"
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={newTrade.price}
+                          onChange={e => setNewTrade({...newTrade, price: e.target.value})}
+                        />
+                        {currentEntryPrice > 0 && (
+                          <div className="text-xs text-gray-400 bg-gray-900/50 p-2 rounded border border-gray-700/50 flex justify-between">
+                            <span>Target 0.5%: <span className="text-emerald-400 font-mono">{target05}</span></span>
+                            <span>Target 1.0%: <span className="text-emerald-400 font-mono">{target10}</span></span>
+                          </div>
+                        )}
+                      </div>
+
+                      <Input 
+                        label="Quantity"
+                        type="number"
+                        placeholder="0"
+                        value={newTrade.qty}
+                        onChange={e => setNewTrade({...newTrade, qty: e.target.value})}
+                      />
+                      
+                      <div className="sm:col-span-2 mt-2">
+                        <Button type="submit" variant="primary" className="w-full justify-center h-[42px]">
+                          <Plus size={18} /> Log Trade
+                        </Button>
+                      </div>
+                    </form>
+                  </Card>
+                </div>
+
+                <div className="space-y-2">
+                   <Card className="p-4 sm:p-6 space-y-6 h-full border-blue-900/30 bg-gray-800/80">
+                      <div className="flex items-center gap-2 mb-2">
+                         <TrendingUp className="text-emerald-500" size={20} />
+                         <h3 className="text-lg font-bold text-white">Projections</h3>
+                      </div>
+                      
+                      <div className="text-sm text-gray-400">
+                        Avg Daily P/L: <span className={`font-mono ${stats.avgDailyPL >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatCurrency(stats.avgDailyPL)}</span>
+                      </div>
+
+                      <div className="space-y-4">
+                        <Input 
+                          label="Planned Trade Days / Month"
+                          type="number" 
+                          value={projections.plannedDaysMonth}
+                          onChange={e => handleUpdateProjections('plannedDaysMonth', e.target.value)}
+                        />
+                      </div>
+
+                      <div className="pt-4 border-t border-gray-700 space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400 text-sm">Monthly Proj.</span>
+                          <span className={`font-bold font-mono ${stats.avgDailyPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {formatCurrency(stats.avgDailyPL * projections.plannedDaysMonth)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400 text-sm">Yearly Proj.</span>
+                          <span className={`font-bold font-mono ${stats.avgDailyPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {formatCurrency(stats.avgDailyPL * projections.plannedDaysYear)}
+                          </span>
+                        </div>
+                      </div>
+                    </Card>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-white px-1">Active Trades (Open)</h3>
+                <Card className="overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[700px] sm:min-w-0">
+                      <thead>
+                        <tr className="bg-gray-900/50 text-gray-400 text-xs uppercase whitespace-nowrap">
+                          <th className="p-4">Date</th>
+                          <th className="p-4">Symbol</th>
+                          <th className="p-4 text-right">Entry Price</th>
+                          <th className="p-4 text-right">Qty</th>
+                          <th className="p-4 text-center">Profit Targets</th>
+                          <th className="p-4 text-right">Total Invested</th>
+                          <th className="p-4 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-700">
+                        {activeTrades.map(trade => {
+                          const t05 = (trade.entryPrice * 1.005).toFixed(2);
+                          const t10 = (trade.entryPrice * 1.01).toFixed(2);
+                          
+                          return (
+                            <tr key={trade.id} className="hover:bg-gray-700/30 transition-colors text-sm whitespace-nowrap">
+                              <td className="p-4 text-gray-300">{trade.entryDate}</td>
+                              <td className="p-4 font-bold text-white">{trade.symbol}</td>
+                              <td className="p-4 text-right text-gray-300">{formatCurrency(trade.entryPrice)}</td>
+                              <td className="p-4 text-right text-gray-300">{trade.qty}</td>
+                              <td className="p-4 text-center">
+                                <div className="flex flex-col gap-1 text-xs">
+                                   <div className="flex justify-between gap-2 px-2">
+                                     <span className="text-gray-400">0.5%:</span>
+                                     <span className="text-emerald-400 font-mono font-medium">{t05}</span>
+                                   </div>
+                                   <div className="flex justify-between gap-2 px-2">
+                                     <span className="text-gray-400">1.0%:</span>
+                                     <span className="text-emerald-400 font-mono font-medium">{t10}</span>
+                                   </div>
+                                </div>
+                              </td>
+                              <td className="p-4 text-right text-blue-300 font-mono">{formatCurrency(trade.entryPrice * trade.qty)}</td>
+                              <td className="p-4 text-center">
+                                {closeTradeData.id === trade.id ? (
+                                  <div className="flex items-center justify-end gap-2 animate-in fade-in slide-in-from-right-4">
+                                     <Input 
+                                        type="number" 
+                                        className="w-24 py-1 text-sm" 
+                                        placeholder="Exit $$" 
+                                        autoFocus
+                                        value={closeTradeData.price}
+                                        onChange={e => setCloseTradeData({...closeTradeData, price: e.target.value})}
+                                      />
+                                      <button onClick={handleCloseTrade} className="bg-emerald-600 p-1.5 rounded hover:bg-emerald-500 text-white"><ArrowRight size={16}/></button>
+                                      <button onClick={() => setCloseTradeData({id:null, price:'', date:''})} className="bg-gray-600 p-1.5 rounded hover:bg-gray-500 text-white"><XCircle size={16}/></button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-2">
+                                    <Button variant="danger" className="py-1 px-3 text-sm" onClick={() => initCloseTrade(trade)}>
+                                      Close
+                                    </Button>
+                                    <Button variant="icon" className="p-1 hover:text-red-400" onClick={() => handleDeleteTrade(trade.id)} title="Delete Trade Log">
+                                      <Trash2 size={16} />
+                                    </Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {activeTrades.length === 0 && (
+                          <tr><td colSpan="7" className="p-6 text-center text-gray-500">No active trades.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </div>
+
+              <div className="space-y-2 pt-4">
+                <h3 className="text-lg font-semibold text-white px-1">Trade History (Closed)</h3>
+                <Card className="overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[800px] sm:min-w-0">
+                      <thead>
+                        <tr className="bg-gray-900/50 text-gray-400 text-xs uppercase whitespace-nowrap">
+                          <th className="p-4">Close Date</th>
+                          <th className="p-4">Symbol</th>
+                          <th className="p-4 text-right">Entry</th>
+                          <th className="p-4 text-right">Exit</th>
+                          <th className="p-4 text-right">Qty</th>
+                          <th className="p-4 text-right">P/L</th>
+                          <th className="p-4 text-right">Return %</th>
+                          <th className="p-4 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-700">
+                        {historyTrades.map((trade) => {
+                          return (
+                            <tr key={trade.id} className="hover:bg-gray-700/30 transition-colors text-sm whitespace-nowrap">
+                              <td className="p-4 text-gray-300">{trade.exitDate}</td>
+                              <td className="p-4 font-bold text-white">{trade.symbol}</td>
+                              <td className="p-4 text-right text-gray-400">{formatCurrency(trade.entryPrice)}</td>
+                              <td className="p-4 text-right text-gray-400">{formatCurrency(trade.exitPrice)}</td>
+                              <td className="p-4 text-right text-gray-400">{trade.qty}</td>
+                              <td className={`p-4 text-right font-mono font-bold ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {trade.pnl > 0 ? '+' : ''}{formatCurrency(trade.pnl)}
+                              </td>
+                               <td className="p-4 text-right text-gray-500 text-xs">
+                                {((trade.pnl / (trade.entryPrice * trade.qty)) * 100).toFixed(2)}%
+                              </td>
+                              <td className="p-4 text-center">
+                                <Button variant="icon" className="p-1 hover:text-red-400 mx-auto" onClick={() => handleDeleteTrade(trade.id)} title="Delete Trade Record">
+                                    <Trash2 size={16} />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {historyTrades.length === 0 && (
+                          <tr><td colSpan="8" className="p-6 text-center text-gray-500">No closed trades yet.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </div>
+            </div>
+          );
+        };
+
+        const App = () => {
+          const [user, setUser] = useState(null);
+          const [activeTab, setActiveTab] = useState('dashboard');
+          const [isLoading, setIsLoading] = useState(true);
+          const [authError, setAuthError] = useState(null);
+          
+          const [investors, setInvestors] = useState([]);
+          const [trades, setTrades] = useState([]);
+          const [projections, setProjections] = useState({
+            plannedDaysYear: 240, plannedDaysMonth: 20, currentDayHours: 8
+          });
+
+          const [newInvestor, setNewInvestor] = useState({ name: '', amount: '' });
+          const [newTrade, setNewTrade] = useState({ symbol: '', price: '', qty: '', date: new Date().toISOString().split('T')[0] });
+          const [closeTradeData, setCloseTradeData] = useState({ id: null, price: '', date: new Date().toISOString().split('T')[0] });
+
+          // Initialize Auth
+          useEffect(() => {
+            const initAuth = async () => {
+                // If using GitHub Pages without environment variables, anonymous auth is the default fallback
+                try {
+                    await signInAnonymously(auth);
+                } catch(e) { console.error("Auto-login failed", e); }
+            };
+            initAuth();
+            const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+              setUser(currentUser);
+              setIsLoading(false);
+            });
+            return () => unsubscribe();
+          }, []);
+
+          // Sync Data
+          useEffect(() => {
+            if (!user) return;
+            const invQuery = query(collection(db, 'artifacts', appId, 'users', user.uid, 'investors'));
+            const tradeQuery = query(collection(db, 'artifacts', appId, 'users', user.uid, 'trades'));
+            const settingsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'projections');
+
+            const unsubInv = onSnapshot(invQuery, (snap) => setInvestors(snap.docs.map(d => ({id:d.id, ...d.data()}))));
+            const unsubTrade = onSnapshot(tradeQuery, (snap) => setTrades(snap.docs.map(d => ({id:d.id, ...d.data()}))));
+            const unsubSet = onSnapshot(settingsRef, (snap) => { if(snap.exists()) setProjections(snap.data()); });
+
+            return () => { unsubInv(); unsubTrade(); unsubSet(); };
+          }, [user]);
+
+          // Auth Handlers
+          const handleGoogleLogin = async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+              setAuthError(null);
+              await signInWithPopup(auth, provider);
+            } catch (error) {
+              setAuthError(`Login failed: ${error.message}`);
+              setTimeout(() => setAuthError(null), 6000);
+            }
+          };
+
+          const handleLogout = async () => {
+            await signOut(auth);
+          };
+
+          // Logic
+          const stats = useMemo(() => {
+            const totalInitialCapital = investors.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+            const closedTrades = trades.filter(t => t.status === 'CLOSED');
+            const openTrades = trades.filter(t => t.status === 'OPEN');
+            const totalRealizedPL = closedTrades.reduce((sum, t) => sum + t.pnl, 0);
+            const totalInvestedInOpen = openTrades.reduce((sum, t) => sum + (t.entryPrice * t.qty), 0);
+            const totalFundValue = totalInitialCapital + totalRealizedPL;
+            const totalTradeCount = closedTrades.length;
+            const avgPLPerTrade = totalTradeCount > 0 ? totalRealizedPL / totalTradeCount : 0;
+            const uniqueTradingDays = new Set(closedTrades.map(t => t.exitDate)).size;
+            const avgDailyPL = uniqueTradingDays > 0 ? totalRealizedPL / uniqueTradingDays : 0;
+            const roi = totalInitialCapital > 0 ? (totalRealizedPL / totalInitialCapital) * 100 : 0;
+
+            return {
+              totalInitialCapital, totalRealizedPL, totalFundValue, totalInvestedInOpen,
+              availableCash: totalFundValue - totalInvestedInOpen,
+              totalTradeCount, avgPLPerTrade, avgDailyPL, roi
+            };
+          }, [investors, trades]);
+
+          // CRUD Handlers
+          const handleAddInvestor = async (e) => {
+            e.preventDefault();
+            if (!newInvestor.name || !newInvestor.amount || !user) return;
+            const amountToAdd = parseFloat(newInvestor.amount);
+            const cleanName = newInvestor.name.trim();
+            const existingInv = investors.find(inv => inv.name.toLowerCase() === cleanName.toLowerCase());
+            if (existingInv) {
+                await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'investors', existingInv.id), { amount: existingInv.amount + amountToAdd });
+            } else {
+                const newId = Date.now().toString();
+                await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'investors', newId), { id: newId, name: cleanName, amount: amountToAdd, date: new Date().toISOString() });
+            }
+            setNewInvestor({ name: '', amount: '' });
+          };
+
+          const handleRemoveInvestor = async (id) => {
+            if (user) await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'investors', id));
+          };
+
+          const handleAddTrade = async (e) => {
+            e.preventDefault();
+            if (!newTrade.symbol || !newTrade.price || !newTrade.qty || !user) return;
+            const newId = Date.now().toString();
+            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'trades', newId), {
+              id: newId, symbol: newTrade.symbol.toUpperCase(),
+              entryPrice: parseFloat(newTrade.price), qty: parseFloat(newTrade.qty),
+              entryDate: newTrade.date, status: 'OPEN', pnl: 0
+            });
+            setNewTrade({ ...newTrade, symbol: '', price: '', qty: '' });
+          };
+
+          const handleDeleteTrade = async (id) => {
+            if (user && window.confirm("Delete this trade?")) await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'trades', id));
+          };
+
+          const handleCloseTrade = async (e) => {
+            e.preventDefault();
+            if (!user) return;
+            const trade = trades.find(t => t.id === closeTradeData.id);
+            if (!trade) return;
+            const exitPrice = parseFloat(closeTradeData.price);
+            const pnl = (exitPrice - trade.entryPrice) * trade.qty;
+            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'trades', trade.id), {
+              status: 'CLOSED', exitPrice, exitDate: closeTradeData.date, pnl
+            });
+            setCloseTradeData({ id: null, price: '', date: '' });
+          };
+
+          const initCloseTrade = (trade) => {
+            setCloseTradeData({ id: trade.id, price: trade.entryPrice, date: new Date().toISOString().split('T')[0] });
+          };
+
+          const handleUpdateProjections = async (key, val) => {
+             if (!user) return;
+             const updated = { ...projections, [key]: Number(val), ...(key === 'plannedDaysMonth' ? { plannedDaysYear: Number(val) * 12 } : {}) };
+             setProjections(updated);
+             await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'projections'), updated);
+          };
+
+          const formatCurrency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+          const formatPercent = (val) => `${val.toFixed(2)}%`;
+
+          return (
+            <div className="min-h-screen bg-gray-950 text-gray-100 font-sans selection:bg-blue-500/30 flex flex-col w-full">
+              <nav className="bg-gray-900 border-b border-gray-800 sticky top-0 z-50">
+                <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+                  <div className="flex items-center justify-between h-16">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-blue-600 p-2 rounded-lg">
+                        <DollarSign className="text-white" size={20} />
+                      </div>
+                      <span className="text-xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                        FundMaster
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 relative">
+                       <div className="flex flex-col items-end">
+                         {user && !user.isAnonymous ? (
+                           <div className="flex items-center gap-3 bg-gray-800 rounded-full pl-3 pr-1 py-1 border border-gray-700">
+                              <span className="text-sm font-medium text-gray-300 hidden sm:block">
+                                {user.displayName || user.email}
+                              </span>
+                              <button onClick={handleLogout} className="bg-gray-700 hover:bg-gray-600 text-white p-1.5 rounded-full transition-colors">
+                                <LogOut size={14} />
+                              </button>
+                           </div>
+                         ) : (
+                           <div className="flex items-center gap-2">
+                             {user && user.isAnonymous && <span className="text-xs text-emerald-400 hidden md:inline-block bg-emerald-900/20 px-2 py-1 rounded">Guest</span>}
+                             <Button variant="google" onClick={handleGoogleLogin} className="text-xs sm:text-sm">
+                                <LogIn size={16} /> <span className="hidden sm:inline">Google</span>
+                             </Button>
+                           </div>
+                         )}
+                         {authError && (
+                           <div className="absolute top-12 right-0 bg-red-600/90 text-white text-xs px-3 py-2 rounded shadow-lg flex items-center gap-2 z-50 w-64">
+                             <AlertTriangle size={16} /><span>{authError}</span>
+                           </div>
+                         )}
+                       </div>
+
+                      <div className="h-6 w-px bg-gray-800 mx-2 hidden sm:block"></div>
+
+                      <div className="hidden sm:flex items-center gap-2">
+                        {['dashboard', 'trading', 'clients'].map(tab => (
+                          <button key={tab} onClick={() => setActiveTab(tab)} 
+                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors capitalize ${activeTab === tab ? 'text-white bg-gray-800' : 'text-gray-400 hover:text-white'}`}>
+                            {tab}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </nav>
+
+              <main className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 pb-24 sm:pb-8">
+                {activeTab === 'dashboard' && <DashboardView stats={stats} investors={investors} formatCurrency={formatCurrency} setActiveTab={setActiveTab} />}
+                {activeTab === 'clients' && <ClientManagerView investors={investors} newInvestor={newInvestor} setNewInvestor={setNewInvestor} handleAddInvestor={handleAddInvestor} handleRemoveInvestor={handleRemoveInvestor} formatCurrency={formatCurrency} setActiveTab={setActiveTab} />}
+                {activeTab === 'trading' && <TradingView trades={trades} newTrade={newTrade} setNewTrade={setNewTrade} handleAddTrade={handleAddTrade} stats={stats} projections={projections} handleUpdateProjections={handleUpdateProjections} closeTradeData={closeTradeData} setCloseTradeData={setCloseTradeData} handleCloseTrade={handleCloseTrade} handleDeleteTrade={handleDeleteTrade} initCloseTrade={initCloseTrade} formatCurrency={formatCurrency} setActiveTab={setActiveTab} />}
+              </main>
+
+              <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 pb-safe z-50">
+                <div className="flex justify-around items-center h-16">
+                  <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${activeTab === 'dashboard' ? 'text-blue-500' : 'text-gray-400'}`}>
+                    <LayoutDashboard size={20} /><span className="text-[10px] font-medium">Dashboard</span>
+                  </button>
+                  <button onClick={() => setActiveTab('trading')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${activeTab === 'trading' ? 'text-blue-500' : 'text-gray-400'}`}>
+                    <BookOpen size={20} /><span className="text-[10px] font-medium">Journal</span>
+                  </button>
+                  <button onClick={() => setActiveTab('clients')} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${activeTab === 'clients' ? 'text-blue-500' : 'text-gray-400'}`}>
+                    <Users size={20} /><span className="text-[10px] font-medium">Clients</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
