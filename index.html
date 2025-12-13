@@ -112,7 +112,7 @@
 
         // --- Sub-Views ---
 
-        const DashboardView = ({ stats, investors, formatCurrency, setActiveTab }) => (
+        const DashboardView = ({ stats, investors, formatCurrency, formatPercent, setActiveTab }) => (
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="p-5 flex flex-col justify-between bg-gradient-to-br from-blue-900 to-gray-800">
@@ -195,7 +195,7 @@
                             <tr key={inv.id} className="hover:bg-gray-700/30 transition-colors text-sm whitespace-nowrap">
                               <td className="p-4 font-medium text-white">{inv.name}</td>
                               <td className="p-4 text-right text-gray-300">{formatCurrency(inv.amount)}</td>
-                              <td className="p-4 text-right text-blue-400 font-mono">{formatPercent(share * 100)}</td>
+                              <td className="p-4 text-right text-blue-400 font-mono">{formatPercent ? formatPercent(share * 100) : (share * 100).toFixed(2) + '%'}</td>
                               <td className={`p-4 text-right font-mono ${profitShare >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                 {profitShare > 0 ? '+' : ''}{formatCurrency(profitShare)}
                               </td>
@@ -724,7 +724,7 @@
               </nav>
 
               <main className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 pb-24 sm:pb-8">
-                {activeTab === 'dashboard' && <DashboardView stats={stats} investors={investors} formatCurrency={formatCurrency} setActiveTab={setActiveTab} />}
+                {activeTab === 'dashboard' && <DashboardView stats={stats} investors={investors} formatCurrency={formatCurrency} formatPercent={formatPercent} setActiveTab={setActiveTab} />}
                 {activeTab === 'clients' && <ClientManagerView investors={investors} newInvestor={newInvestor} setNewInvestor={setNewInvestor} handleAddInvestor={handleAddInvestor} handleRemoveInvestor={handleRemoveInvestor} formatCurrency={formatCurrency} setActiveTab={setActiveTab} />}
                 {activeTab === 'trading' && <TradingView trades={trades} newTrade={newTrade} setNewTrade={setNewTrade} handleAddTrade={handleAddTrade} stats={stats} projections={projections} handleUpdateProjections={handleUpdateProjections} closeTradeData={closeTradeData} setCloseTradeData={setCloseTradeData} handleCloseTrade={handleCloseTrade} handleDeleteTrade={handleDeleteTrade} initCloseTrade={initCloseTrade} formatCurrency={formatCurrency} setActiveTab={setActiveTab} />}
               </main>
